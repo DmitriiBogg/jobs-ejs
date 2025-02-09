@@ -4,6 +4,9 @@ require("dotenv").config();
 
 const session = require("express-session");
 const MongoDBStore = require("connect-mongodb-session")(session);
+const flash = require("connect-flash");
+const connectDB = require("./db/connect");
+const flashMessages = require("./middleware/flashMessages");
 
 const app = express();
 
@@ -32,6 +35,10 @@ app.use(
   })
 );
 
+// Flash message middleware
+app.use(flash());
+app.use(flashMessages);
+
 // Secret word route
 app.get("/secretWord", (req, res) => {
   if (!req.session.secretWord) {
@@ -41,7 +48,13 @@ app.get("/secretWord", (req, res) => {
 });
 
 app.post("/secretWord", (req, res) => {
-  req.session.secretWord = req.body.secretWord;
+  if (req.body.secretWord.toUpperCase().startsWith("P")) {
+    req.flash("error", "That word won't work!");
+    req.flash("error", "You can't use words that start with P.");
+  } else {
+    req.session.secretWord = req.body.secretWord;
+    req.flash("info", "The secret word was changed.");
+  }
   res.redirect("/secretWord");
 });
 
@@ -60,6 +73,8 @@ const port = process.env.PORT || 3000;
 
 const start = async () => {
   try {
+    await connectDB(process.env.MONGO_URI);
+    console.log("Connected to MongoDB...");
     app.listen(port, () =>
       console.log(`Server running at http://localhost:${port}/secretWord`)
     );
