@@ -6,7 +6,10 @@ const session = require("express-session");
 const MongoDBStore = require("connect-mongodb-session")(session);
 const flash = require("connect-flash");
 const connectDB = require("./db/connect");
-const flashMessages = require("./middleware/flashMessages");
+const passport = require("passport");
+const passportInit = require("./passport/passportInit");
+const auth = require("./middleware/auth");
+const secretWordRouter = require("./routes/secretWord");
 
 const app = express();
 
@@ -37,26 +40,32 @@ app.use(
 
 // Flash message middleware
 app.use(flash());
-app.use(flashMessages);
+
+// Passport initialization
+passportInit();
+app.use(passport.initialize());
+app.use(passport.session());
+
+// storeLocals
+app.use(require("./middleware/storeLocals"));
+
+//index
+app.get("/", (req, res) => {
+  res.render("index");
+});
+
+// session
+app.use(
+  "/sessions",
+  (req, res, next) => {
+    console.log(`Request received at /sessions: ${req.method} ${req.url}`);
+    next();
+  },
+  require("./routes/sessionRoutes")
+);
 
 // Secret word route
-app.get("/secretWord", (req, res) => {
-  if (!req.session.secretWord) {
-    req.session.secretWord = "syzygy";
-  }
-  res.render("secretWord", { secretWord: req.session.secretWord });
-});
-
-app.post("/secretWord", (req, res) => {
-  if (req.body.secretWord.toUpperCase().startsWith("P")) {
-    req.flash("error", "That word won't work!");
-    req.flash("error", "You can't use words that start with P.");
-  } else {
-    req.session.secretWord = req.body.secretWord;
-    req.flash("info", "The secret word was changed.");
-  }
-  res.redirect("/secretWord");
-});
+app.use("/secretWord", auth, secretWordRouter);
 
 // 404 handler
 app.use((req, res) => {
@@ -76,7 +85,7 @@ const start = async () => {
     await connectDB(process.env.MONGO_URI);
     console.log("Connected to MongoDB...");
     app.listen(port, () =>
-      console.log(`Server running at http://localhost:${port}/secretWord`)
+      console.log(`Server running at http://localhost:${port}`)
     );
   } catch (error) {
     console.log(error);
